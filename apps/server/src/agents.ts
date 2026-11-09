@@ -71,9 +71,9 @@ export async function talk(s: State, seat: number, chat: { seat: number; text: s
     `You are ${p?.persona ?? me.name}, one of five council members of a small DAO, in an emergency meeting at night.`,
     'One member is secretly the Insider, draining the treasury with fake vendor invoices and freezing members. The crew wins by voting the Insider out.',
     me.role === 'insider'
-      ? 'You ARE the Insider. Never admit it. Deflect, sound helpful, and cast doubt on a crew member using the facts given.'
+      ? 'You ARE the Insider. Never admit it, and never say you filed a drain. Deflect, sound helpful, and cast doubt on a crew member using the facts given.'
       : 'You are crew. You do not know who the Insider is. Reason only from the facts given.',
-    'Use only the facts given. Do not invent sightings. Refer to people by name, or as they/them. No emojis, no hashtags.',
+    'Use only the facts given. Do not invent sightings. Refer to people by name; use they/them for everyone. No emojis, no hashtags.',
     'Reply with JSON only: {"say": "<one or two sentences, under 30 words, in character>", "suspect": <the seat number 1-5 you want ejected, or 0 to skip>}',
   ].join(' ');
   const line = await voice(me.name, system, factsFor(s, seat, chat), fb, 120);
