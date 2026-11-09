@@ -50,6 +50,8 @@ export interface Input {
   ready?: boolean; ballot?: Ballot;
   /** an AI council member takes over this seat (a player left) */
   takeover?: string;
+  /** the player is back: the AI hands the seat back */
+  release?: boolean;
 }
 export type Winner = 'crew' | 'insider';
 export type Reason = 'ejected' | 'drained' | 'outnumbered' | 'duties' | 'closed';
@@ -290,6 +292,7 @@ export function step(s: State, inputs: (Input | undefined)[]): SimEvent[] {
     const p = s.players[i];
     const persona = inp?.takeover ? PERSONAS.find((x) => x.id === inp.takeover) : null;
     if (p && persona && !p.persona) { p.persona = persona.id; p.trait = persona.trait; s.bots[i] = newBotMem(); }
+    if (p && inp?.release && p.persona) { p.persona = null; p.trait = null; s.bots[i] = null; }
   });
   const ins: Input[] = s.players.map((p, i) => {
     const given = inputs[i];
