@@ -3,7 +3,7 @@ import {
   dealCommits, filerCommit, newSecret, seedHash, voteCommit,
   type Proposal, type Setup, type State,
 } from '@inside-job/rules';
-import { call, callOn, view } from './chain.ts';
+import { call, callOn } from './chain.ts';
 import { config, deskOf, hasKey, payeeAccount } from './config.ts';
 import { saveMatch, type MatchRecord, type SeatRec } from './store.ts';
 
@@ -38,6 +38,8 @@ export class ChainMatch {
   private created: Promise<boolean>;
   private filed: Promise<number | null>[] = [];
   private commits: Promise<unknown>[][] = [];
+  /** which seats' vote commitments went through, per meeting (only those can be opened) */
+  private committed: boolean[][] = [];
   private votes: Promise<unknown>[] = [];
   /** the last vote sent on each spend: votes on one spend go out in the sim's order (the DAO closes it at the third) */
   private lastVote = new Map<number, Promise<unknown>>();
@@ -138,6 +140,7 @@ export class ChainMatch {
       if (!(await this.created)) return;
       try {
         const r = await call(deskOf(seat), 'commit_vote', { match_id: this.rec.id, meeting, hash: voteCommit(this.rec.id, meeting, seat, choice, salt) }, 15);
+        (this.committed[meeting] ??= [false, false, false, false, false])[seat] = true;
         this.note(`seat ${seat + 1} seals its vote (meeting ${meeting + 1})`, r.tx);
       } catch (e) { this.fail(`commit_vote seat ${seat + 1}`, e); }
     })());
@@ -152,9 +155,9 @@ export class ChainMatch {
       if (!(await this.created)) return;
       await Promise.all(this.commits[meeting] ?? []);
       const salts = this.rec.voteSalts[meeting] ?? [];
-      // only votes whose commitment went through can be opened (a failed commit counts as no ballot)
-      const m = await view<{ meetings: { commits: (string | null)[] }[] } | null>('get_match', { match_id: this.rec.id }).catch(() => null);
-      const committed = m?.meetings[meeting]?.commits ?? [];
+      // only votes whose commitment went through can be opened (a failed commit counts as no ballot);
+      // tracked from the transactions themselves, not a view, which can lag behind on another RPC node
+      const committed = this.committed[meeting] ?? [];
       const openings = votes.map((v, seat) => (v !== null && salts[seat] && committed[seat] ? { choice: v, salt: salts[seat] } : null));
       try {
         const r = await call<number | null>(config.referee, 'tally_meeting', { match_id: this.rec.id, meeting, openings, alive }, 40);
