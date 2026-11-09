@@ -1,0 +1,26 @@
+{
+  "name": "inside-job",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@11.26.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter ./apps/* dev",
+    "build": "pnpm --filter @inside-job/web build",
+    "start": "pnpm --filter @inside-job/server start",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "sim": "pnpm --filter @inside-job/rules sim",
+    "verify": "pnpm --filter @inside-job/server verify",
+    "e2e": "pnpm --filter @inside-job/server e2e",
+    "setup:agents": "pnpm --filter @inside-job/server setup:agents",
+    "contract:test": "cd contracts/council && cargo test --locked",
+    "contract:build": "cd contracts/council && cargo near build non-reproducible-wasm --locked"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.7",
+    "tsx": "4.20.6"
+  }
+}
