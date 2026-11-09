@@ -99,7 +99,7 @@ cm.meetings.forEach((cmt, n) => {
   });
   if (cmt.ejected !== t.ejected) { votesOk = false; bad(`meeting ${n + 1}: the contract ejected ${cmt.ejected}, the replay ${t.ejected}`); }
 });
-if (votesOk) ok(`${opened} sealed eject votes open to what was cast; the contract's ${cm.meetings.length} tallies match the replay (${s.meetings.filter((t) => t.ejected !== null).map((t) => `seat ${t.ejected! + 1} ejected`).join(', ') || 'no ejections'})`);
+if (votesOk) ok(`${opened} sealed eject votes open to what was cast; the contract's ${cm.meetings.length} ${cm.meetings.length === 1 ? 'tally matches' : 'tallies match'} the replay (${s.meetings.filter((t) => t.ejected !== null).map((t) => `seat ${t.ejected! + 1} ejected`).join(', ') || 'no ejections'})`);
 if (cm.meetings.length < s.meetings.length) bad(`${s.meetings.length - cm.meetings.length} meeting(s) never reached the contract`);
 
 // 5. the DAO
