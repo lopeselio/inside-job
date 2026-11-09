@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ALL_PAYEES, BUDGET, DRAIN_GOAL, PERSONAS, SEATS, SPAWNS, STATIONS, VENDORS, NEW_VENDORS, SHELLS, LOOKALIKES,
+  ALL_PAYEES, BUDGET, DRAIN_GOAL, MIN_DISCUSS, PERSONAS, SEATS, SPAWNS, STATIONS, VENDORS, NEW_VENDORS, SHELLS, LOOKALIKES,
   botBallot, castVote, createState, dealCommits, dealInsider, editDistance, filerCommit, flagsFor, free, path, replay, roleCommit, roleSalt,
   seedHash, sha256Hex, sight, standTiles, stateHash, step, tallyVotes, viewFor, voteCommit,
   type Input, type LogEntry, type Setup, type State,
@@ -99,7 +99,9 @@ describe('meetings', () => {
     s.tick = s.nextSession - 1;
     run(s, 1);
     expect(s.phase).toBe('meeting');
-    run(s, 1, s.players.map(() => ({ ready: true })));
+    run(s, MIN_DISCUSS - 2, s.players.map(() => ({ ready: true })));
+    expect(s.meeting?.phase).toBe('discuss');
+    run(s, 2, s.players.map(() => ({ ready: true })));
     expect(s.meeting?.phase).toBe('vote');
     run(s, 1, s.players.map(() => ({ ballot: { eject: s.insider, props: {} } })));
     expect(s.phase).toBe('over');

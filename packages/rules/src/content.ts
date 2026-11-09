@@ -27,6 +27,8 @@ export const LIGHTS_FIRST = 300;
 export const LIGHTS_TIME = 250;
 export const SESSION_EVERY = 750;
 export const DISCUSS_TICKS = 350;
+/** a discussion can't be cut shorter than this (the AI members need a moment to speak) */
+export const MIN_DISCUSS = 90;
 export const VOTE_TICKS = 220;
 export const REVEAL_TICKS = 70;
 export const PLAY_LIMIT = 4800;

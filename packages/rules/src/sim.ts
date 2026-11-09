@@ -2,7 +2,7 @@ import { flagsFor, type Flag, type Terminal } from './audit.ts';
 import { botInput, newBotMem, type BotMem } from './bot.ts';
 import {
   ALL_PAYEES, APPROVALS, BUDGET, DISCUSS_TICKS, DRAIN_GOAL, DUTIES, DUTIES_EACH, FREEZE_CD, FREEZE_FIRST, FREEZE_RANGE, LIGHTS_CD,
-  LIGHTS_FIRST, LIGHTS_TIME, MAX_SPENDS, NEW_VENDORS, PERSONAS, PLAY_LIMIT, REPORT_RANGE, REVEAL_TICKS, SESSION_EVERY, SKIM_CD,
+  LIGHTS_FIRST, LIGHTS_TIME, MAX_SPENDS, MIN_DISCUSS, NEW_VENDORS, PERSONAS, PLAY_LIMIT, REPORT_RANGE, REVEAL_TICKS, SESSION_EVERY, SKIM_CD,
   SKIM_FIRST, SKIM_MAX, SKIM_MIN, SKIM_PAYEES, SPEED, VENDORS, VISION, VISION_DARK, VOTE_TICKS, dutyDef, type DutyKind, type Trait,
 } from './content.ts';
 import { SEATS, dealInsider, sha256Hex, type Role } from './hash.ts';
@@ -60,7 +60,7 @@ export type SimEvent =
   | { t: 'frozen'; victim: number; x: number; y: number }
   | { t: 'meeting'; n: number; kind: MeetingKind; by: number | null; body: number | null }
   | { t: 'phase'; phase: 'discuss' | 'vote' | 'reveal' | 'play' }
-  | { t: 'ballot'; seat: number }
+  | { t: 'ballot'; seat: number; n: number }
   | { t: 'tally'; tally: Tally }
   | { t: 'lights'; out: boolean }
   | { t: 'duty'; seat: number; kind: DutyKind }
@@ -353,11 +353,11 @@ export function step(s: State, inputs: (Input | undefined)[]): SimEvent[] {
       if (m.phase === 'discuss' && inp.ready) m.ready[p.seat] = true;
       if (m.phase === 'vote' && inp.ballot && !m.ballots[p.seat]) {
         m.ballots[p.seat] = cleanBallot(s, inp.ballot);
-        ev.push({ t: 'ballot', seat: p.seat });
+        ev.push({ t: 'ballot', seat: p.seat, n: m.n });
       }
     }
     const alive = s.players.filter((p) => p.status === 'alive');
-    if (m.phase === 'discuss' && (s.tick >= m.until || alive.every((p) => p.persona || m.ready[p.seat]))) {
+    if (m.phase === 'discuss' && (s.tick >= m.until || (s.tick >= m.start + MIN_DISCUSS && alive.every((p) => p.persona || m.ready[p.seat])))) {
       m.phase = 'vote';
       m.phaseStart = s.tick;
       m.until = s.tick + VOTE_TICKS;
