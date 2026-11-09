@@ -24,6 +24,8 @@ interface Member {
   persona: string | null;
   inputs: Input[];
   sent: number;
+  /** an AI is holding this human's chair */
+  tookOver?: boolean;
 }
 
 const rooms = new Map<string, Room>();
@@ -96,6 +98,7 @@ export class Room {
     const m = this.members.find((x) => x.token === token && !x.persona);
     if (!m) return false;
     m.ws = ws;
+    if (m.tookOver && this.phase === 'playing') { m.inputs.push({ release: true }); m.tookOver = false; }
     if (this.phase === 'lobby') this.broadcastLobby();
     else this.sendStart(this.members.indexOf(m));
     return true;
@@ -138,11 +141,13 @@ export class Room {
     else {
       m.ws = null;
       // mid-match: an AI council member takes the chair so the match stays fair for everyone else
-      if (this.phase === 'playing' && this.state && !this.state.players[i].persona) {
+      // (after a grace period, so a reload doesn't cost you your chair)
+      setTimeout(() => {
+        if (m.ws || this.phase !== 'playing' || !this.state || this.state.players[i].persona) return;
         const used = new Set(this.state.players.map((p) => p.persona));
         const p = PERSONAS.find((x) => !used.has(x.id));
-        if (p) m.inputs.push({ takeover: p.id });
-      }
+        if (p) { m.inputs.push({ takeover: p.id }); m.tookOver = true; }
+      }, 15_000).unref();
     }
     if (!this.members.some((x) => x.ws)) {
       // nobody left watching: an unfinished match plays itself out (so it settles); a lobby closes
