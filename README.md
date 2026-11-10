@@ -75,6 +75,7 @@ contracts/council  Rust near-sdk 5.29: sealed roles and votes, the spend policy 
 - **The server knows every role**: it runs the sim and the AI. The seals stop it from *changing* a role, a vote or a filer after the fact, and stop other players and chain watchers from learning them early. Moving the referee into a TEE would close the rest; it isn't done.
 - **Human seats' desk keys are held by the server**, which casts their DAO votes and vote commitments as the player chose. Signed-in players claim their seat from their own wallet, but their in-game votes still go through the desk.
 - `alive` at a tally is the referee's word (freezes are offchain).
+- **The treasury DAO still has a full-access key.** `dao.inside-job.testnet` keeps the full-access key it was deployed with, so whoever holds it could redeploy the DAO, change its members or move its NEAR without a vote. It is kept on purpose for the hackathon (testnet money, and so the DAO can still be fixed). Deleting it would make the 3-of-5 council vote the only way money moves, at the cost of never being able to upgrade the DAO; that is the planned next step.
 
 ## Tests
 
