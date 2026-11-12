@@ -649,9 +649,11 @@ export class Office {
       this.camera.lookAt(17, 0, 8.5);
       this.torch.intensity = 0;
     } else {
-      const want = new THREE.Vector3(this.follow.x, 12.5, this.follow.z + 9.5);
+      // a phone held upright sees a narrow strip: pull the camera back so a room still fits across
+      const k = this.camera.aspect < 0.9 ? Math.min(1.45, Math.sqrt(0.9 / this.camera.aspect)) : 1;
+      const want = new THREE.Vector3(this.follow.x, 12.5 * k, this.follow.z + 9.5 * k);
       this.camera.position.lerp(want, 1 - Math.exp(-dt * 6));
-      this.camera.lookAt(this.camera.position.x, 0, this.camera.position.z - 9.5 - 0.6);
+      this.camera.lookAt(this.camera.position.x, 0, this.camera.position.z - 9.5 * k - 0.6);
       this.torch.position.set(this.follow.x, 1.6, this.follow.z + 0.3);
       this.torch.intensity = this.dark ? 3.5 : 2.5;
     }
