@@ -4,15 +4,26 @@ import {
 } from '@inside-job/rules';
 
 // Re-checks a finished match without trusting the game server:
-//   pnpm verify <matchId> [baseUrl]
+//   pnpm verify <matchId> [--host <url>]      (default host: the hosted game, https://inside-job.lopeselio.online)
+//   pnpm verify <matchId> <url>               (the older form still works)
 // It fetches the proof bundle from the server, then reads the contract and the Sputnik DAO itself
 // over public RPC, and checks: the seed against its committed hash; every role commitment; a full
 // replay of the input log; every spend in the contract's audit log against the replay and its sealed
 // filer; every sealed vote against its commitment and the contract's tally; every council vote on the
 // DAO against the replay; and the outcome the contract recorded.
 
-const [id, base = 'http://localhost:8841'] = process.argv.slice(2);
-if (!id) { console.error('usage: pnpm verify <matchId> [baseUrl]'); process.exit(2); }
+const HOSTED = 'https://inside-job.lopeselio.online';
+const args = process.argv.slice(2);
+const hostAt = args.findIndex((a) => a === '--host' || a.startsWith('--host='));
+let base = HOSTED;
+if (hostAt >= 0) {
+  base = args[hostAt].includes('=') ? args[hostAt].slice('--host='.length) : (args[hostAt + 1] ?? '');
+  args.splice(hostAt, args[hostAt].includes('=') ? 1 : 2);
+} else if (args[1]) base = args[1];
+const id = args[0];
+if (!id || !/^https?:\/\//.test(base)) { console.error('usage: pnpm verify <matchId> [--host <url>]   (default host: ' + HOSTED + ')'); process.exit(2); }
+base = base.replace(/\/+$/, '');
+const die = (s: string): never => { console.log(`✗ ${s}`); process.exit(1); };
 
 let failed = 0;
 const ok = (s: string): void => console.log(`✓ ${s}`);
@@ -33,24 +44,46 @@ interface ChainMatch {
   outcome: { winner: string; reason: string; insider: number; drained: number; seed: string; filers: number[]; disputed: boolean } | null;
 }
 
-const bundle = (await (await fetch(`${base}/api/match/${id}/proof`)).json()) as Bundle;
-if (bundle.error) { console.log(`✗ ${bundle.error}`); process.exit(1); }
+const bundle = await (async (): Promise<Bundle> => {
+  let r: Response;
+  try { r = await fetch(`${base}/api/match/${encodeURIComponent(id)}/proof`, { signal: AbortSignal.timeout(20_000) }); }
+  catch (e) { return die(`could not reach ${base} (${(e as Error).message})`); }
+  try { return (await r.json()) as Bundle; } catch { return die(`${base} did not return a proof bundle (HTTP ${r.status})`); }
+})();
+if (bundle.error) die(`${bundle.error} on ${base}${base === HOSTED ? '' : ' (a match lives on the server that played it: pass --host <url>)'}`);
 
-const RPCS = ['https://rpc.testnet.fastnear.com', 'https://near-testnet.drpc.org', 'https://testnet-rpc.intea.rs'];
+// Public testnet RPCs, tried in order. Rate limits (HTTP 429, or a JSON-RPC "too many requests") and
+// network errors move on to the next one; each round backs off before trying the list again.
+const RPCS = (process.env.NEAR_RPC_URLS ?? 'https://testnet-rpc.intea.rs,https://near-testnet.drpc.org,https://rpc.testnet.fastnear.com,https://test.rpc.fastnear.com')
+  .split(',').map((u) => u.trim()).filter(Boolean);
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 async function viewOn<T>(account: string, method: string, args: object): Promise<T> {
-  for (const rpc of RPCS) {
-    try {
-      const r = (await (await fetch(rpc, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'query', params: { request_type: 'call_function', finality: 'final', account_id: account, method_name: method, args_base64: Buffer.from(JSON.stringify(args)).toString('base64') } }),
-      })).json()) as { result?: { result: number[] } };
-      if (r.result) return JSON.parse(Buffer.from(r.result.result).toString('utf8')) as T;
-    } catch { /* next RPC */ }
+  let last = '';
+  for (let round = 0; round < 4; round++) {
+    if (round) await sleep(800 * 2 ** round);
+    for (const rpc of RPCS) {
+      try {
+        const res = await fetch(rpc, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(15_000),
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'query', params: { request_type: 'call_function', finality: 'final', account_id: account, method_name: method, args_base64: Buffer.from(JSON.stringify(args)).toString('base64') } }),
+        });
+        if (res.status === 429 || res.status >= 500) { last = `${new URL(rpc).host}: HTTP ${res.status}`; continue; }
+        const r = (await res.json()) as { result?: { result?: number[]; error?: string }; error?: { message?: string; cause?: { name?: string }; data?: unknown } };
+        if (r.result?.result) return JSON.parse(Buffer.from(r.result.result).toString('utf8')) as T;
+        const msg = r.result?.error ?? r.error?.cause?.name ?? r.error?.message ?? 'no result';
+        // a contract panic is an answer, not a flaky node: report it rather than asking every RPC
+        if (r.result?.error || /MethodNotFound|CodeDoesNotExist|UNKNOWN_ACCOUNT|AccountDoesNotExist/i.test(JSON.stringify(r.error ?? ''))) throw Object.assign(new Error(`${account}.${method}: ${msg}`), { final: true });
+        last = `${new URL(rpc).host}: ${msg}`;
+      } catch (e) {
+        if ((e as { final?: boolean }).final) throw e;
+        last = `${new URL(rpc).host}: ${(e as Error).message}`;
+      }
+    }
   }
-  throw new Error(`could not read ${method} from ${account}`);
+  throw new Error(`could not read ${method} from ${account} on any public RPC (last: ${last}); try again in a minute, or set NEAR_RPC_URLS`);
 }
 
-const cm = await viewOn<ChainMatch | null>(bundle.contract, 'get_match', { match_id: id });
+const cm = await viewOn<ChainMatch | null>(bundle.contract, 'get_match', { match_id: id }).catch((e: Error) => die(e.message));
 if (!cm) { console.log(`✗ the contract has no match ${id}`); process.exit(1); }
 const seed = bundle.setup.seed;
 
@@ -103,13 +136,13 @@ if (votesOk) ok(`${opened} sealed eject votes open to what was cast; the contrac
 if (cm.meetings.length < s.meetings.length) bad(`${s.meetings.length - cm.meetings.length} meeting(s) never reached the contract`);
 
 // 5. the DAO
-const desks = (await viewOn<{ desks: string[] }>(bundle.contract, 'get_policy', {})).desks;
+const desks = (await viewOn<{ desks: string[] }>(bundle.contract, 'get_policy', {}).catch((e: Error) => die(e.message))).desks;
 let daoOk = true;
 let daoVotes = 0;
 const STATUS: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', pending: 'InProgress' };
 for (const [n, c] of cm.spends.entries()) {
   if (c.dao_id === null) continue;
-  const dp = await viewOn<{ status: string; votes: Record<string, string> }>(bundle.dao, 'get_proposal', { id: c.dao_id });
+  const dp = await viewOn<{ status: string; votes: Record<string, string> }>(bundle.dao, 'get_proposal', { id: c.dao_id }).catch((e: Error) => die(e.message));
   const p = s.proposals[n];
   const want = p.votes.map((v, seat) => (v === null ? null : [desks[seat], v ? 'Approve' : 'Reject'])).filter((x): x is [string, string] => !!x);
   const same = want.length === Object.keys(dp.votes).length && want.every(([a, v]) => dp.votes[a] === v);
