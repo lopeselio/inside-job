@@ -93,8 +93,10 @@ export class Room {
     return token;
   }
 
-  /** Back after a reload: the seat token proves it's you. */
+  /** Back after a reload: the seat token proves it's you. A finished match can't be rejoined (its result
+   *  stays at /api/match/<id>/proof and under "Recent nights"); the client then drops its ticket. */
   rejoin(ws: WebSocket, token: string): boolean {
+    if (this.phase === 'over') return false;
     const m = this.members.find((x) => x.token === token && !x.persona);
     if (!m) return false;
     m.ws = ws;
