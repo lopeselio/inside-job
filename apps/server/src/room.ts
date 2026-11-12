@@ -29,6 +29,8 @@ interface Member {
 }
 
 const rooms = new Map<string, Room>();
+/** the most a solo match's clock may be held, in ticks (5 minutes) */
+const MAX_HOLD = 5 * 60 * TICK_HZ;
 const byMatch = new Map<string, Room>();
 const send = (ws: WebSocket | null, msg: unknown): void => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); };
 
@@ -71,6 +73,9 @@ export class Room {
   private talking = new Set<number>();
   private replies = 0;
   private lastSent = '';
+  /** solo only: the clock stops while the player reads the walkthrough or their role card */
+  private held = false;
+  private heldTicks = 0;
 
   constructor(readonly solo = false) { rooms.set(this.code, this); }
 
@@ -139,6 +144,7 @@ export class Room {
     const i = this.seatOf(ws);
     if (i < 0) return;
     const m = this.members[i];
+    this.held = false;
     if (this.phase === 'lobby') this.members.splice(i, 1);
     else {
       m.ws = null;
@@ -159,6 +165,15 @@ export class Room {
     if (this.phase === 'lobby') this.broadcastLobby();
   }
 
+  /** Solo matches only: stop the clock while the one human reads the walkthrough or their role card.
+   *  A held tick simply doesn't happen (nothing is logged), so replays and the chain are unaffected.
+   *  Capped at MAX_HOLD in total, so a forgotten tab still plays out and settles. */
+  hold(ws: WebSocket, on: boolean): void {
+    const i = this.seatOf(ws);
+    if (!this.solo || this.phase !== 'playing' || i < 0 || this.members[i].persona || this.members[i].tookOver) return;
+    this.held = on;
+  }
+
   /** Hand this seat to an AI council member (the e2e test, or a player who wants to watch). */
   autopilot(ws: WebSocket): void {
     const i = this.seatOf(ws);
@@ -166,7 +181,7 @@ export class Room {
     if (i < 0 || !s || this.phase !== 'playing' || s.players[i].persona) return;
     const used = new Set(s.players.map((p) => p.persona));
     const p = PERSONAS.find((x) => !used.has(x.id));
-    if (p) this.members[i].inputs.push({ takeover: p.id });
+    if (p) { this.members[i].inputs.push({ takeover: p.id }); this.held = false; }
   }
 
   input(ws: WebSocket, raw: Partial<Input>): void {
@@ -244,6 +259,12 @@ export class Room {
     let next = Date.now();
     const tick = (): void => {
       const s = this.state!;
+      if (this.held && this.heldTicks < MAX_HOLD) {
+        this.heldTicks++;
+        next += 1000 / TICK_HZ;
+        this.timer = setTimeout(tick, Math.max(0, next - Date.now()));
+        return;
+      }
       const inputs: (Input | undefined)[] = this.members.map((m) => {
         if (!m.inputs.length) return undefined;
         const merged = m.inputs.reduce<Input>((a, b) => ({ ...a, ...b }), {});
