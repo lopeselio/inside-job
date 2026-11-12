@@ -49,7 +49,12 @@ export function App() {
         setLobby(null);
         if (!onboarded()) setHelp(true);
       } else if (m.t === 'error') {
-        if (m.message === 'that match is gone') setTicket(null);
+        if (m.message === 'that match is gone') {
+          // the match ended (or closed) while this tab was away: back to the title, where it's under "Recent nights"
+          setTicket(null);
+          setLobby(null);
+          setStart((cur) => { if (cur) setErr('That match ended while you were away. Its result is under Recent nights.'); return null; });
+        }
         else { setErr(String(m.message)); sfx.error(); }
       } else if (m.t === 'kicked') { setLobby(null); setTicket(null); setErr('The host removed you from the room.'); }
       else if (m.t === 'online') setOnline(true);
@@ -75,6 +80,8 @@ export function App() {
   }, [lobby, start]);
 
   const leave = (): void => { net.send({ t: 'leave' }); setTicket(null); setStart(null); setLobby(null); };
+  // once a match is over there is nothing to rejoin: a reload goes back to the title, not to "Taking your seat…"
+  useEffect(() => net.on((m: Msg) => { if (m.t === 'results') setTicket(null); }), []);
 
   return (
     <>
