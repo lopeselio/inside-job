@@ -195,6 +195,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
           case 'input': r?.input(ws, (msg.i ?? {}) as never); break;
           case 'chat': r?.chat(ws, String(msg.text ?? '')); break;
           case 'autopilot': r?.autopilot(ws); break;
+          case 'hold': r?.hold(ws, !!msg.on); break;
           case 'leave': r?.leave(ws); roomOf.delete(ws); break;
         }
       } catch (e) { err((e as Error).message); }
