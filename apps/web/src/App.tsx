@@ -136,39 +136,53 @@ function Title({ cfg, account }: { cfg: Cfg | null; account: string | null }) {
     void fetch('/api/leaderboard').then((r) => r.json()).then(setBoard).catch(() => undefined);
   }, [account]);
   const nm = (): string => { const n = name.trim() || 'Guest'; saveName(n); return n; };
+  const play = (): void => { sfx.click(); net.send({ t: 'solo', name: nm() }); };
+  const hex = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
   return (
     <main className="title">
       <section className="hero">
+        <p className="kicker">A social-deduction night shift on NEAR</p>
         <h1>INSIDE<span>JOB</span></h1>
-        <p className="tag">Five council members run a DAO’s treasury through the night. One of them is draining it.</p>
-        <p>Do your duties, vet every spend before it leaves the <b>real Sputnik DAO</b> on NEAR testnet, and vote the Insider out. Roles and votes are <b>sealed onchain</b>; the AI council speaks through a <b>TEE model</b> and votes through accounts that <b>can’t move money</b>.</p>
-        <label className="name">Your name <input value={name} maxLength={18} placeholder="Guest" onChange={(e) => setName(e.target.value)} /></label>
-        <div className="row">
-          <button className="primary big" onClick={() => { sfx.click(); net.send({ t: 'solo', name: nm() }); }}>Play with the AI council</button>
+        <p className="tag">Five council members run a DAO’s treasury through the night. <em>One of them is draining it.</em></p>
+        <div className="play-card">
+          <label className="name">Your name <input value={name} maxLength={18} placeholder="Guest" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') play(); }} /></label>
+          <button className="primary big cta" onClick={play}>Play with the AI council</button>
+          <div className="row friends">
+            <span className="dim small">or with friends:</span>
+            <button className="ghost" onClick={() => net.send({ t: 'create', name: nm() })}>Create a room</button>
+            <form className="join" onSubmit={(e) => { e.preventDefault(); if (code.trim()) net.send({ t: 'join', code: code.trim().toUpperCase(), name: nm() }); }}>
+              <input value={code} maxLength={4} placeholder="CODE" aria-label="Room code" onChange={(e) => setCode(e.target.value.toUpperCase())} />
+              <button className="ghost">Join</button>
+            </form>
+          </div>
+          <p className="dim small">Guests play instantly, no wallet. {account ? `Signed in as ${account}: you’ll claim your seat from your wallet, gasless, and be ranked.` : 'Sign in with NEAR to be ranked.'}</p>
         </div>
-        <div className="row">
-          <button onClick={() => net.send({ t: 'create', name: nm() })}>Create a room</button>
-          <form className="join" onSubmit={(e) => { e.preventDefault(); if (code.trim()) net.send({ t: 'join', code: code.trim().toUpperCase(), name: nm() }); }}>
-            <input value={code} maxLength={4} placeholder="CODE" onChange={(e) => setCode(e.target.value.toUpperCase())} />
-            <button>Join</button>
-          </form>
-        </div>
-        <p className="dim small">Guests play instantly, no wallet. {account ? `Signed in as ${account}: you’ll claim your seat from your wallet, gasless, and be ranked.` : 'Sign in with NEAR to be ranked.'}</p>
-      </section>
-
-      <section className="panel council">
-        <h2>Tonight’s AI council</h2>
-        <ul className="personas">{(cfg?.personas ?? []).map((p) => <li key={p.id}><i style={{ background: `#${p.color.toString(16).padStart(6, '0')}` }} /><b>{p.name}</b><small>{p.trait}</small><span>{p.persona.replace(/^[^,]+, /, '')}</span></li>)}</ul>
-        <p className="dim small">Each sits at a desk account (<code>seat1…seat5.{cfg?.contract ?? 'inside-job.testnet'}</code>) whose only keys are function-call keys: one may seal votes on the game contract, one may vote on the DAO. Their words come from {cfg?.nearAi ? 'a TEE-hosted model on NEAR AI Cloud, signed' : 'templates (no NEAR AI key on this server)'}; their votes come from the rules engine.</p>
-      </section>
-
-      <section className="panel onchain">
-        <h2>What the chain holds</h2>
-        <ul>
-          <li><b>Contract</b> <a href={`https://testnet.nearblocks.io/address/${cfg?.contract}`} target="_blank" rel="noreferrer">{cfg?.contract}</a>: sealed roles, the spend policy and audit log, sealed votes and tallies, settlement.</li>
-          <li><b>Treasury</b> <a href={`https://testnet.nearblocks.io/address/${cfg?.dao}`} target="_blank" rel="noreferrer">{cfg?.dao}</a>: a Sputnik DAO v2. Only the contract may propose a Transfer; only the five desks may vote; 3 of 5 approve.</li>
-          <li>{cfg?.chain ? 'Chain writes are on.' : 'Chain writes are off on this server (CHAIN=0): everything plays, nothing is written.'}</li>
+        <ul className="pillars">
+          <li><b>Do your duties</b><span>Small puzzles around the office. Finish them all and the crew wins.</span></li>
+          <li><b>Vet every spend</b><span>Money leaves a <em>real Sputnik DAO</em> only with 3 of 5 votes.</span></li>
+          <li><b>Vote the Insider out</b><span>Roles and eject votes are <em>sealed onchain</em>, opened at the end.</span></li>
         </ul>
+      </section>
+
+      <section className="council">
+        <h2>Tonight’s AI council</h2>
+        <ul className="personas">{(cfg?.personas ?? []).map((p) => (
+          <li key={p.id} style={{ ['--c' as string]: hex(p.color) }}>
+            <i className="face" aria-hidden="true"><b /><b /></i>
+            <div><b>{p.name}</b><small>{p.trait}</small></div>
+            <span>{p.persona.replace(/^[^,]+, /, '')}</span>
+          </li>))}
+        </ul>
+        <p className="dim small">They talk through {cfg?.nearAi ? 'a TEE-hosted model on NEAR AI Cloud, every line signed' : 'templates (no NEAR AI key on this server)'}; their votes come from the rules engine, from desk accounts (<code>seat1…seat5.{cfg?.contract ?? 'inside-job.testnet'}</code>) that hold only function-call keys and can’t move money.</p>
+      </section>
+
+      <section className="onchain">
+        <h2>What the chain holds</h2>
+        <dl className="facts">
+          <div><dt>Contract</dt><dd><a href={`https://testnet.nearblocks.io/address/${cfg?.contract}`} target="_blank" rel="noreferrer">{cfg?.contract}</a><small>sealed roles, spend policy and audit log, sealed votes and tallies, settlement</small></dd></div>
+          <div><dt>Treasury</dt><dd><a href={`https://testnet.nearblocks.io/address/${cfg?.dao}`} target="_blank" rel="noreferrer">{cfg?.dao}</a><small>a Sputnik DAO v2: only the contract proposes, only the five desks vote, 3 of 5 approve</small></dd></div>
+          <div><dt>This server</dt><dd>{cfg?.chain ? 'Chain writes on' : 'Chain writes off (CHAIN=0)'}<small>{cfg?.chain ? 'every match is created, sealed and settled on testnet' : 'everything plays, nothing is written'}</small></dd></div>
+        </dl>
       </section>
 
       {recent.length > 0 && (
