@@ -523,7 +523,7 @@ function ResultsView({ r, v, seats, me, start, chain, onLeave }: { r: Results; v
             {start.chain && !chain.settled && <p className="dim">Settling… the referee opens the seed and every filer; the contract re-checks all five role commitments and reads each spend’s status from the Sputnik DAO.</p>}
             {r.outcome && <p className="ok">✓ Settled onchain: {r.outcome.winner} by {r.outcome.reason}, {r.outcome.drained} credits drained{r.outcome.disputed ? ' (the contract overruled the referee’s claim)' : ''}.</p>}
             <ul className="txs">{chain.txs.map((t) => <li key={t.hash}><a href={t.url} target="_blank" rel="noreferrer">{t.what}</a></li>)}</ul>
-            <p className="dim">Check it yourself: <code>pnpm verify {r.matchId}{location.port === '8841' ? '' : ` ${location.origin}`}</code></p>
+            <p className="dim">Check it yourself: <code>pnpm verify {r.matchId}{location.origin === 'https://inside-job.lopeselio.online' ? '' : ` --host ${location.origin}`}</code></p>
           </div>
         </div>
         <div className="row">
