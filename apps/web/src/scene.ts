@@ -16,6 +16,51 @@ const FLOOR: Record<RoomId, [number, number]> = {
   payroll: [0x1b3133, 0x1f383a],
 };
 const WALL_H = 1.35;
+/** Each room's accent: its lamp, the glow strip along its walls, the name on its floor. */
+const ACCENT: Record<RoomId, number> = {
+  vault: 0x88a8ff, servers: 0x38e0ff, audit: 0xffc277, hall: 0xb8c8ff, archive: 0xffb066, council: 0xff8a6b, payroll: 0x7fffe0,
+};
+
+/** A soft round light pool, white; tinted per lamp by the material colour. */
+let poolTex: THREE.CanvasTexture | null = null;
+function lightPool(): THREE.CanvasTexture {
+  if (poolTex) return poolTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.35)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  poolTex = new THREE.CanvasTexture(c);
+  return poolTex;
+}
+
+/** A room's name painted on its floor by the door, in its accent colour. */
+function floorSign(text: string, color: number): THREE.Mesh {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 112;
+  const g = c.getContext('2d')!;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.letterSpacing = '8px';
+  // shrink long names ("Council room") to fit the frame
+  let size = 64;
+  do { g.font = `800 ${size}px Inter, system-ui, sans-serif`; size -= 4; } while (g.measureText(text.toUpperCase()).width > 450 && size > 24);
+  g.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+  g.fillText(text.toUpperCase(), 256, 58);
+  g.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+  g.lineWidth = 4;
+  g.strokeRect(8, 8, 496, 96);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.74), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.42, depthWrite: false, toneMapped: false }));
+  m.rotation.x = -Math.PI / 2;
+  return m;
+}
 
 export interface Actor { seat: number; x: number; y: number; dir: number; moving: boolean; ghost: boolean; color: number; name: string; me?: boolean }
 
@@ -190,6 +235,7 @@ export class Office {
   private figures = new Map<number, Figure>();
   private bodies = new Map<number, Figure>();
   private lamps: { light: THREE.PointLight; base: number }[] = [];
+  private pools: THREE.MeshBasicMaterial[] = [];
   private ambient: THREE.AmbientLight;
   private moon: THREE.DirectionalLight;
   private torch = new THREE.PointLight(0xfff0d0, 6, 7, 1.6);
@@ -224,6 +270,7 @@ export class Office {
     const vox = new Voxels();
     this.buildFloorAndWalls();
     this.buildFurniture(vox);
+    this.buildRoomIdentity(vox);
     this.buildSkyline(vox);
     const built = vox.build(this.scene);
     this.glow = built.glow;
@@ -233,6 +280,13 @@ export class Office {
       l.position.set(x, y, z);
       this.scene.add(l);
       this.lamps.push({ light: l, base: intensity });
+      // the pool of light it throws on the floor (a decal, not another light: cheap on phones)
+      const mat = new THREE.MeshBasicMaterial({ map: lightPool(), color, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+      const pool = new THREE.Mesh(new THREE.PlaneGeometry(dist * 0.62, dist * 0.62), mat);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(x, 0.02, z);
+      this.scene.add(pool);
+      this.pools.push(mat);
     };
     lamp(5.5, 3.5, 0x88a8ff, 7);          // vault
     lamp(16.5, 3.5, 0x38e0ff, 6);         // servers
@@ -413,6 +467,51 @@ export class Office {
     }
   }
 
+  /** What tells the rooms apart at a glance: an accent strip along the walls, the name on the floor, rugs and a few props. */
+  private buildRoomIdentity(v: Voxels): void {
+    const dim = (c: number, k: number): number => new THREE.Color(c).multiplyScalar(k).getHex();
+    for (const r of ROOMS) {
+      if (r.id === 'hall') continue;
+      const a = dim(ACCENT[r.id], 0.55);
+      const top = r.y1 < 8;
+      const wz = top ? r.y0 + 0.03 : r.y1 + 1 - 0.03; // the solid back wall (north for the top row, south for the bottom)
+      const len = r.x1 - r.x0 + 1, deep = r.y1 - r.y0 + 1;
+      v.add(r.x0 + len / 2, 0.05, wz, len, 0.05, 0.04, a, true);
+      v.add(r.x0 + 0.03, 0.05, r.y0 + deep / 2, 0.04, 0.05, deep, a, true);
+      v.add(r.x1 + 1 - 0.03, 0.05, r.y0 + deep / 2, 0.04, 0.05, deep, a, true);
+      // the room's name on the floor, just inside its door
+      const sign = floorSign(r.name, ACCENT[r.id]);
+      sign.position.set(r.x0 + 5, 0.022, top ? r.y1 + 0.55 : r.y0 + 0.6);
+      this.scene.add(sign);
+    }
+    // hall: a runner down the middle and a door mat at each doorway
+    v.add(17, 0.005, 9, 30, 0.01, 0.9, 0x2a2f52);
+    v.add(17, 0.007, 9, 30, 0.01, 0.06, 0x4a5490);
+    for (const x of [6, 17, 28]) for (const z of [7.5, 10.5]) v.add(x, 0.006, z, 1.9, 0.01, 0.7, 0x1a1d2a);
+    // vault: a cart of gold and red laser beams across the vault door
+    v.add(2.2, 0.25, 4.6, 0.9, 0.08, 0.6, 0x5b6170); v.add(2.2, 0.13, 4.6, 0.06, 0.26, 0.06, 0x2a2a2a);
+    for (let k = 0; k < 6; k++) v.add(1.95 + (k % 3) * 0.25, 0.34 + Math.floor(k / 3) * 0.1, 4.6, 0.22, 0.09, 0.4, 0xe8c34a);
+    for (let k = 0; k < 3; k++) v.add(6.5, 0.45 + k * 0.32, 1.35, 2.6, 0.015, 0.015, 0xff3344, true);
+    // servers: cable trays on the floor
+    for (const z of [3.2, 4.4]) { v.add(16.5, 0.02, z, 8.6, 0.03, 0.22, 0x0e131c); v.add(16.5, 0.04, z - 0.05, 8.4, 0.02, 0.03, z < 4 ? 0x2a7fd0 : 0x2fa860); }
+    // audit office: a rug and a coat stand
+    v.add(27.5, 0.006, 3.6, 3.2, 0.01, 2.2, 0x5a2e22); v.add(27.5, 0.008, 3.6, 2.8, 0.01, 1.8, 0x7a4430);
+    v.add(31.9, 0.6, 5.6, 0.06, 1.2, 0.06, 0x3a2a1c); v.add(31.9, 1.15, 5.6, 0.36, 0.06, 0.06, 0x3a2a1c); v.add(31.75, 0.85, 5.62, 0.22, 0.5, 0.12, 0x2f3d6b);
+    // archive: a rug and stacked file boxes
+    v.add(6.5, 0.006, 15, 3.4, 0.01, 2.2, 0x3a2a4a); v.add(6.5, 0.008, 15, 3, 0.01, 1.8, 0x4c3860);
+    for (let k = 0; k < 5; k++) v.add(9.2 - (k % 2) * 0.45, 0.17 + Math.floor(k / 2) * 0.32, 16.9, 0.42, 0.3, 0.32, k % 2 ? 0xc8a878 : 0xb89868);
+    // council: a carpet under the table
+    v.add(17, 0.005, 14.4, 6.4, 0.01, 4.6, 0x2a1418);
+    // payroll: a printer, a stack of coin rolls, a rug
+    v.add(26.4, 0.006, 13.8, 3, 0.01, 2, 0x14403f); v.add(26.4, 0.008, 13.8, 2.6, 0.01, 1.6, 0x1d5655);
+    v.add(30.6, 0.4, 12.0, 0.7, 0.8, 0.5, 0x3a3f4a); v.add(30.6, 0.84, 12.0, 0.6, 0.08, 0.42, 0xe8e6df);
+    v.add(30.85, 0.7, 12.26, 0.05, 0.05, 0.02, 0x6aff6a, true);
+    for (let k = 0; k < 4; k++) v.add(24.2 + k * 0.14, 0.12 + (k % 2) * 0.04, 12.0, 0.1, 0.24 + (k % 2) * 0.08, 0.1, 0xd9b54a);
+    // hall: a glowing vending machine
+    v.add(32.4, 0.65, 8.35, 0.7, 1.3, 0.5, 0x2a1830);
+    this.screens.push({ i: v.add(32.4, 0.75, 8.61, 0.5, 0.8, 0.01, 0xff7ad0, true), c: new THREE.Color(0xff7ad0) });
+  }
+
   private buildSkyline(v: Voxels): void {
     let x = -20;
     let seed = 7;
@@ -525,6 +624,7 @@ export class Office {
     for (const l of this.lamps) l.light.intensity += (l.base * dim * (0.97 + Math.sin(t * 3 + l.base) * 0.03) - l.light.intensity) * Math.min(1, dt * 4);
     this.ambient.intensity += ((this.dark ? 0.3 : 1.6) - this.ambient.intensity) * Math.min(1, dt * 4);
     this.moon.intensity = this.dark ? 0.25 : 0.9;
+    for (const m of this.pools) m.opacity += ((this.dark ? 0.05 : 0.32) - m.opacity) * Math.min(1, dt * 4);
 
     this.ring.rotation.z = Math.PI / 4 + t * 0.6;
     (this.ring.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(t * 5) * 0.3;
