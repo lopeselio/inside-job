@@ -96,7 +96,7 @@ export function App() {
         <Account account={account} setAccount={setAccount} />
       </header>
       {err && <div className="err-banner" onClick={() => setErr('')}>{err} <small>(dismiss)</small></div>}
-      {office && start && <Game key={start.matchId} office={office} start={start} account={account} onLeave={leave} onHelp={() => setHelp(true)} />}
+      {office && start && <Game key={start.matchId} office={office} start={start} account={account} onLeave={leave} onHelp={() => setHelp(true)} reading={help} />}
       {!start && lobby && <LobbyView lobby={lobby} onLeave={leave} />}
       {!start && !lobby && <Title cfg={cfg} account={account} />}
       {help && <Onboarding onClose={() => setHelp(false)} />}
