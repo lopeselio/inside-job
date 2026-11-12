@@ -61,7 +61,7 @@ function nameTag(text: string, color: number): THREE.Sprite {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-  s.scale.set(1.6, 0.4, 1);
+  s.scale.set(1.9, 0.48, 1);
   s.renderOrder = 10;
   return s;
 }
@@ -78,6 +78,7 @@ class Figure {
   private mats: THREE.MeshStandardMaterial[] = [];
   private ice: THREE.Mesh | null = null;
   private tag: THREE.Sprite;
+  private marker: THREE.Mesh | null = null;
   x = 0; z = 0; tx = 0; tz = 0; dir = 2; moving = false; ghost = false; frozen = false; seen = 0;
 
   constructor(readonly seat: number, color: number, name: string) {
@@ -115,10 +116,31 @@ class Figure {
     box(0.05, 0.05, 0.02, eye, 0.08, 1.01, 0.165);
     // a desk badge, in the seat's colour
     box(0.07, 0.09, 0.02, mat(0xffe08a), 0.13, 0.7, 0.14);
+    // a faint glow of the seat colour on the suit, so a figure reads in the dark
+    suit.emissive.setHex(color).multiplyScalar(0.14);
+    suit.userData.em = suit.emissive.getHex();
     this.root.add(this.body);
+    // a soft shadow and a ring in the seat's colour at the feet: who is who, from above
+    const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.36, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.012;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.38, 0.46, 24), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.015;
+    this.root.add(shadow, ring);
     this.tag = nameTag(name, color);
     this.tag.position.set(0, 1.62, 0);
     this.root.add(this.tag);
+  }
+
+  /** A gold marker over your own head. */
+  setMe(me: boolean): void {
+    if (me && !this.marker) {
+      this.marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.11), new THREE.MeshBasicMaterial({ color: 0xffd36b, toneMapped: false }));
+      this.marker.scale.y = 1.4;
+      this.root.add(this.marker);
+    }
+    if (this.marker) this.marker.visible = me;
   }
 
   setGhost(g: boolean): void {
@@ -132,7 +154,7 @@ class Figure {
     this.frozen = f;
     this.body.rotation.x = f ? -Math.PI / 2 : 0;
     this.body.position.y = f ? 0.18 : 0;
-    for (const m of this.mats) m.emissive.setHex(f ? 0x0d3550 : 0x000000);
+    for (const m of this.mats) m.emissive.setHex(f ? 0x0d3550 : (m.userData.em as number | undefined) ?? 0x000000);
     if (f && !this.ice) {
       this.ice = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.5, 1.4), new THREE.MeshStandardMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0.35, roughness: 0.1, emissive: 0x15506a }));
       this.ice.position.set(0, 0.25, -0.35);
@@ -155,6 +177,7 @@ class Figure {
     this.legs[0].rotation.x = swing; this.legs[1].rotation.x = -swing;
     this.arms[0].rotation.x = -swing * 0.8; this.arms[1].rotation.x = swing * 0.8;
     this.body.position.y = this.frozen ? 0.18 : this.moving ? Math.abs(Math.sin(t * 11)) * 0.04 : 0;
+    if (this.marker?.visible) { this.marker.position.y = 2.0 + Math.sin(t * 3) * 0.06; this.marker.rotation.y = t * 1.5; }
   }
 }
 
@@ -426,6 +449,7 @@ export class Office {
       f.root.visible = true;
       f.tx = a.x; f.tz = a.y; f.dir = a.dir; f.moving = a.moving;
       f.setGhost(a.ghost);
+      f.setMe(!!a.me);
       if (a.me) this.follow.set(a.x, 0, a.y);
     }
     for (const [seat, f] of this.figures) if (!seen.has(seat)) f.root.visible = false;
