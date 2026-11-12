@@ -104,7 +104,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       });
     }
     const me = await accountFromHeaders(req.headers);
-    if (p === '/api/me') return me ? json(res, 200, { accountId: me, stats: config.chainEnabled ? await view('stats_of', { account_id: me }).catch(() => null) : null }) : json(res, 401, { error: 'not signed in' });
+    if (p === '/api/me') return me ? json(res, 200, { accountId: me, stats: config.chainEnabled ? await view('stats_of', { account_id: me }).catch(() => null) : null }) : json(res, 200, { accountId: null, stats: null }); // a guest: not an error, so the browser logs nothing
     if (p === '/api/leaderboard') return json(res, 200, config.chainEnabled ? await view('leaderboard', { limit: 20 }).catch(() => []) : []);
     if (p === '/api/attestation') return json(res, 200, await attestation());
     if (p === '/api/status') {
