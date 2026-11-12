@@ -173,6 +173,7 @@ input { font: 14px Inter, sans-serif; color: var(--text); background: #0d1426; b
 }
 
 /* ---------- touch screens: the prompt and toasts stay clear of the joystick, the buttons and the cards ---------- */
+kbd.tap { font-family: Inter, sans-serif; background: var(--gold); color: #1a1205; border-color: #f5c451; padding: 1px 7px; }
 @media (pointer: coarse) {
   .joystick { width: 108px; height: 108px; left: 14px; bottom: 22px; }
   .touch-actions { right: 12px; grid-template-columns: repeat(3, auto); }

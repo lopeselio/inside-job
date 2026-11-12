@@ -6,6 +6,11 @@ const KEY = 'inside-job:onboarded';
 export const onboarded = (): boolean => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
 const remember = (): void => { try { localStorage.setItem(KEY, '1'); } catch { /* fine */ } };
 
+/** A touch screen: name the on-screen buttons, not keys. */
+const touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+/** An on-screen button, drawn like a key so the two read the same. */
+const Tap = ({ children }: { children: React.ReactNode }) => <kbd className="tap">{children}</kbd>;
+
 const STEPS: { title: string; body: React.ReactNode }[] = [
   {
     title: 'Five council members. One Insider.',
@@ -17,7 +22,9 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
   {
     title: 'Duties',
     body: <>
-      <p>Walk with <kbd>WASD</kbd> or the arrow keys (a joystick on touch screens). A gold ring marks a station you can use: press <kbd>E</kbd>.</p>
+      {touch
+        ? <p>Walk with the joystick at the bottom left. A gold ring marks a station you can use: tap <Tap>Use</Tap> (bottom right), or the gold prompt that appears above it.</p>
+        : <p>Walk with <kbd>WASD</kbd> or the arrow keys. A gold ring marks a station you can use: press <kbd>E</kbd>.</p>}
       <p>Crew have five duties: count the reserves, patch the validator, brew the night coffee… each is a small puzzle. When every crew duty is done, <b>the crew wins</b>. Frozen members finish theirs as ghosts.</p>
       <p>The Insider has fake duties to stand at, to blend in.</p>
     </>,
@@ -33,7 +40,7 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
   {
     title: 'Meetings and votes',
     body: <>
-      <p>A meeting starts when someone finds a frozen member (<kbd>R</kbd>), rings the bell at the council table (once each), or every 75 seconds for the council session.</p>
+      <p>A meeting starts when someone finds a frozen member ({touch ? <Tap>Report</Tap> : <kbd>R</kbd>}), rings the bell at the council table ({touch ? <Tap>Use</Tap> : <kbd>E</kbd>}, once each), or every 75 seconds for the council session.</p>
       <p>First talk (type in the chat; the AI members speak too, their lines signed by a TEE model on NEAR AI). Then vote: eject someone or skip, and approve or reject the open spends. Your eject vote is <b>sealed onchain</b> from your desk account, then opened and <b>counted by the contract</b>.</p>
       <p>Vote the Insider out and <b>the crew wins</b>.</p>
     </>,
@@ -41,9 +48,10 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
   {
     title: 'If you’re the Insider',
     body: <>
-      <p><kbd>F</kbd> at the vault terminal or payroll desk: file a skim. Pick a shell or a lookalike and an amount, then get it approved.</p>
-      <p><kbd>Q</kbd>: freeze a crew member who is right next to you. Freeze enough and the crew is outnumbered: you win.</p>
-      <p><kbd>L</kbd>: lights out. The crew can barely see until someone fixes the breaker in the server room.</p>
+      {touch && <p>Your tools are extra buttons at the bottom right, next to <Tap>Use</Tap>.</p>}
+      <p>{touch ? <Tap>Skim</Tap> : <kbd>F</kbd>} at the vault terminal or payroll desk: file a skim. Pick a shell or a lookalike and an amount, then get it approved.</p>
+      <p>{touch ? <Tap>Freeze</Tap> : <kbd>Q</kbd>}: freeze a crew member who is right next to you. Freeze enough and the crew is outnumbered: you win.</p>
+      <p>{touch ? <Tap>Lights</Tap> : <kbd>L</kbd>}: lights out. The crew can barely see until someone fixes the breaker in the server room.</p>
       <p>Who filed each spend is sealed too. Only you know which are yours, until the end.</p>
     </>,
   },
