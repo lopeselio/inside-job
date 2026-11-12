@@ -216,7 +216,8 @@ export function Game({ office, start, account, onLeave, onHelp, reading = false 
   function skimOpen(): void {
     const v = viewRef.current;
     const st = here();
-    if (!insider || !v || v.you.status !== 'alive' || (st !== 'terminal' && st !== 'payroll')) return;
+    if (!insider || !v || v.you.status !== 'alive' || v.phase !== 'play') return;
+    if (st !== 'terminal' && st !== 'payroll') { toast('Skims are filed from the vault terminal (Vault) or the payroll desk (Payroll): go to one and press F.'); return; }
     if ((v.you.cd?.skim ?? 1) > 0) { toast(`The books are watched: skim again in ${clock(v.you.cd!.skim)}.`); return; }
     setPanel({ t: 'skim' });
   }
