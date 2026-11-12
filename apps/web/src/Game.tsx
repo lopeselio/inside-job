@@ -26,7 +26,7 @@ const REASON: Record<string, string> = {
 };
 const touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 
-export function Game({ office, start, account, onLeave, onHelp }: { office: Office; start: StartMsg; account: string | null; onLeave: () => void; onHelp: () => void }) {
+export function Game({ office, start, account, onLeave, onHelp, reading = false }: { office: Office; start: StartMsg; account: string | null; onLeave: () => void; onHelp: () => void; reading?: boolean }) {
   const [view, setView] = useState<View | null>(null);
   const [chat, setChat] = useState<ChatLine[]>([]);
   const [chain, setChain] = useState<{ txs: Tx[]; error: string | null; settled: boolean }>({ txs: [], error: null, settled: false });
@@ -234,6 +234,10 @@ export function Game({ office, start, account, onLeave, onHelp }: { office: Offi
       send({ done: kind });
     }, 400);
   };
+
+  // while the walkthrough or the role card is open, a solo match's clock waits (the server ignores this in rooms with friends)
+  const holding = (splash || reading) && !results;
+  useEffect(() => { net.send({ t: 'hold', on: holding }); }, [holding]);
 
   // claim the seat from the wallet (signed-in players): gasless, makes this match count on the ledger
   useEffect(() => {
