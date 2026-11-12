@@ -4,9 +4,11 @@ import { roleCommit } from '@inside-job/rules';
 // Plays one solo match the way the browser does, over the same WebSocket: sits down, checks its own
 // sealed role against the commitment, hands its chair to the AI planner (so the match plays itself
 // out), and waits for the settlement. Then prints every transaction.
-//   pnpm e2e [baseUrl]
+//   pnpm e2e [--host <url>]   (default: a local server, http://localhost:8841; `pnpm e2e <url>` works too)
 
-const base = process.argv[2] ?? 'http://localhost:8841';
+const argv = process.argv.slice(2);
+const hostAt = argv.findIndex((a) => a === '--host' || a.startsWith('--host='));
+const base = (hostAt >= 0 ? (argv[hostAt].includes('=') ? argv[hostAt].slice('--host='.length) : argv[hostAt + 1]) : argv[0]) ?? 'http://localhost:8841';
 const ws = new WebSocket(`${base.replace(/^http/, 'ws')}/ws`);
 const t0 = Date.now();
 let matchId = '';
@@ -45,5 +47,5 @@ await new Promise<void>((resolve, reject) => {
     }
   });
 });
-console.log(`check it: pnpm verify ${matchId}${base === 'http://localhost:8841' ? '' : ` ${base}`}`);
+console.log(`check it: pnpm verify ${matchId}${base.replace(/\/+$/, '') === 'https://inside-job.lopeselio.online' ? '' : ` --host ${base}`}`);
 ws.close();
