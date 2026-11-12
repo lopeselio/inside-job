@@ -40,6 +40,7 @@ interface Bundle {
 interface ChainSpend { tick: number; terminal: string; payee: string; amount: number; flags: string[]; filer_commit: string; dao_id: number | null; status: string }
 interface ChainMatch {
   seed_hash: string; role_commits: string[]; spends: ChainSpend[];
+  seats: { label: string; account: string | null; claimed: boolean }[];
   meetings: { commits: (string | null)[]; votes: (number | null)[] | null; ejected: number | null }[];
   outcome: { winner: string; reason: string; insider: number; drained: number; seed: string; filers: number[]; disputed: boolean } | null;
 }
@@ -158,6 +159,11 @@ const drained = s.proposals.filter((p) => p.drain && p.status === 'approved').re
 if (!o) bad('the contract has not settled the match');
 else if (o.insider !== insider || o.drained !== drained || o.winner !== s.winner || o.reason !== s.reason) bad(`the contract recorded ${o.winner} by ${o.reason} (drained ${o.drained}), the replay ${s.winner} by ${s.reason} (drained ${drained})`);
 else ok(`the contract settled it: ${o.winner} win by ${o.reason}, Insider seat ${o.insider + 1}, ${o.drained} credits drained${o.disputed ? ' (disputed)' : ''}`);
+
+// 7. the ledger: seats a signed-in player claimed from their own wallet
+for (const [k, st] of (cm.seats ?? []).entries()) {
+  if (st.account) console.log(`· seat ${k + 1} belongs to ${st.account}: ${st.claimed ? 'claimed from that wallet (claim_seat), so the result counts on the ledger' : 'not claimed from the wallet, so the ledger leaves it out'}`);
+}
 
 const signed = bundle.lines.filter((l) => l.signature).length;
 if (bundle.lines.length) console.log(`· ${bundle.lines.length} AI lines in the bundle, ${signed} signed by the NEAR AI TEE (request, response and signature included)`);
