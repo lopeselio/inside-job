@@ -257,12 +257,14 @@ export function Game({ office, start, account, onLeave, onHelp, reading = false 
   const st = here();
   const duty = myDutyAt(st);
   const alive = v.you.status === 'alive';
+  // on a touch screen the prompt names the on-screen button (and is itself tappable), not the key
+  const use = touch ? 'Use' : 'E', skimKey = touch ? 'Skim' : 'F';
   const prompt = v.phase !== 'play' ? null
-    : duty ? `E: ${dutyDef(duty).name}`
-    : st === 'audit' ? 'E: Review the spends'
-    : st === 'breaker' && v.lightsOut && !insider && alive ? 'E: Fix the lights'
-    : st === 'table' && alive && !v.you.bellUsed ? 'E: Ring the bell (call a meeting)'
-    : (st === 'terminal' || st === 'payroll') && insider && alive ? `F: Skim${v.you.cd && v.you.cd.skim > 0 ? ` (${clock(v.you.cd.skim)})` : ''}`
+    : duty ? `${use}: ${dutyDef(duty).name}`
+    : st === 'audit' ? `${use}: Review the spends`
+    : st === 'breaker' && v.lightsOut && !insider && alive ? `${use}: Fix the lights`
+    : st === 'table' && alive && !v.you.bellUsed ? `${use}: Ring the bell (call a meeting)`
+    : (st === 'terminal' || st === 'payroll') && insider && alive ? `${skimKey}: Skim${v.you.cd && v.you.cd.skim > 0 ? ` (${clock(v.you.cd.skim)})` : ''}`
     : null;
   const pending = v.proposals.filter((p) => p.status === 'pending');
 
@@ -284,9 +286,9 @@ export function Game({ office, start, account, onLeave, onHelp, reading = false 
         {insider && v.you.cd && (
           <div className="panel tools">
             <h4>Insider tools</h4>
-            <button disabled={!alive || v.you.cd.freeze > 0} onClick={freeze}>Q Freeze {v.you.cd.freeze > 0 ? clock(v.you.cd.freeze) : ''}</button>
-            <button disabled={!alive || v.you.cd.skim > 0} onClick={skimOpen}>F Skim {v.you.cd.skim > 0 ? clock(v.you.cd.skim) : ''}</button>
-            <button disabled={!alive || v.you.cd.lights > 0 || v.lightsOut} onClick={lights}>L Lights out {v.you.cd.lights > 0 ? clock(v.you.cd.lights) : ''}</button>
+            <button disabled={!alive || v.you.cd.freeze > 0} onClick={freeze}>{touch ? '' : 'Q '}Freeze {v.you.cd.freeze > 0 ? clock(v.you.cd.freeze) : ''}</button>
+            <button disabled={!alive || v.you.cd.skim > 0} onClick={skimOpen}>{touch ? '' : 'F '}Skim {v.you.cd.skim > 0 ? clock(v.you.cd.skim) : ''}</button>
+            <button disabled={!alive || v.you.cd.lights > 0 || v.lightsOut} onClick={lights}>{touch ? '' : 'L '}Lights out {v.you.cd.lights > 0 ? clock(v.you.cd.lights) : ''}</button>
           </div>
         )}
       </aside>
@@ -318,7 +320,7 @@ export function Game({ office, start, account, onLeave, onHelp, reading = false 
 
       <div className="toasts">{toasts.map((t) => <div key={t.id} className={`toast ${t.tone}`}>{t.text}</div>)}</div>
       {prompt && !panel && <div className="prompt" onClick={act}>{prompt}</div>}
-      {v.phase === 'play' && alive && bodyNear() && <button className="report" onClick={report}>R · Report the frozen member</button>}
+      {v.phase === 'play' && alive && bodyNear() && <button className="report" onClick={report}>{touch ? 'Report the frozen member' : 'R · Report the frozen member'}</button>}
 
       {touch && v.phase === 'play' && <Joystick onMove={(mx, my) => { joy.current = { mx, my }; }} />}
       {touch && v.phase === 'play' && (
