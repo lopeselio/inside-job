@@ -7,7 +7,8 @@ const env = (k: string, d = ''): string => process.env[k] ?? d;
 export const config = {
   port: Number(env('PORT', '8841')),
   network: env('NEAR_NETWORK', 'testnet'),
-  rpcUrl: env('NEAR_RPC_URL', 'https://test.rpc.fastnear.com'),
+  /** the first RPC tried (fastnear's free tier answers most calls with 429, so it comes last) */
+  rpcUrl: env('NEAR_RPC_URL', 'https://testnet-rpc.intea.rs'),
   contract: env('CONTRACT_ID', 'inside-job.testnet'),
   referee: env('REFEREE_ID', 'inside-job-ref.testnet'),
   /** the Sputnik DAO v2 that holds the council's treasury */
