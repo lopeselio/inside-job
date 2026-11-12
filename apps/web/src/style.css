@@ -171,3 +171,32 @@ input { font: 14px Inter, sans-serif; color: var(--text); background: #0d1426; b
   .top { padding: 8px; gap: 6px; } .top .ghost.small { display: none; }
   .personas li { grid-template-columns: 12px 60px 1fr; } .personas li span { display: none; }
 }
+
+/* ---------- touch screens: the prompt and toasts stay clear of the joystick, the buttons and the cards ---------- */
+@media (pointer: coarse) {
+  .joystick { width: 108px; height: 108px; left: 14px; bottom: 22px; }
+  .touch-actions { right: 12px; grid-template-columns: repeat(3, auto); }
+  .touch-actions button { min-width: 64px; min-height: 52px; padding: 10px 12px; }
+  /* the prompt sits above the controls row, full width between the gutters, and is a button too */
+  .prompt { bottom: 164px; left: 12px; right: 12px; transform: none; width: auto; max-width: 520px; margin: 0 auto; text-align: center; padding: 12px 16px; font-size: 15px; }
+  .report { bottom: 222px; }
+  /* events: the newest two, just above the prompt instead of over the role and treasury cards */
+  .toasts { top: auto; bottom: 222px; left: 12px; right: 12px; transform: none; width: auto; max-width: 520px; margin: 0 auto; }
+  .toasts .toast:not(:nth-last-child(-n + 2)) { display: none; }
+  .toast { background: rgba(12, 17, 32, 0.95); }
+}
+/* a phone held sideways: the HUD columns stop above the joystick and the buttons; prompt and toasts in the middle */
+@media (pointer: coarse) and (max-height: 500px) and (orientation: landscape) {
+  .hud { top: 52px; max-height: calc(100vh - 52px - 160px); }
+  .hud.left { width: 220px; } .hud.right { width: 230px; }
+  .hud.left .role span, .hud.right .roster, .hud.right .chain, .hud.right .spends { display: none; }
+  .duties li { font-size: 12px; }
+  .joystick { width: 112px; height: 112px; left: 16px; bottom: 16px; }
+  .touch-actions { right: 12px; bottom: 16px; grid-template-columns: repeat(3, auto); }
+  .touch-actions button { min-width: 64px; min-height: 46px; padding: 8px 10px; }
+  .prompt { bottom: 16px; left: 150px; right: 250px; max-width: none; }
+  .report { bottom: 76px; }
+  .toasts { top: 56px; bottom: auto; left: 248px; right: 258px; max-width: none; }
+  .toasts .toast:not(:nth-last-child(-n + 1)) { display: none; }
+  .toast { font-size: 12px; padding: 5px 10px; }
+}
