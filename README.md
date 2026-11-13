@@ -167,6 +167,89 @@ They don't hold or earn money of their own: their desk keys are function-call ke
 - `alive` at a tally is the referee's word (freezes are offchain).
 - **The treasury DAO still has a full-access key.** `dao.inside-job.testnet` keeps the full-access key it was deployed with, so whoever holds it could redeploy the DAO, change its members or move its NEAR without a vote. It is kept on purpose for the hackathon (testnet money, and so the DAO can still be fixed). Deleting it would make the 3-of-5 council vote the only way money moves, at the cost of never being able to upgrade the DAO; that is the planned next step.
 
+## Built on NEAR
+
+What each NEAR technology does in Inside Job, and where to look. Each GIF is a short loop (12 seconds or less).
+
+| Technology | What Inside Job uses it for | Where to look |
+|---|---|---|
+| NEAR smart contract (Rust, near-sdk 5.29.1) | sealed roles, spend filers and eject votes; the spend policy and audit log; tallies, settlement and the ledger | [`contracts/council`](contracts/council/src/lib.rs), [`inside-job.testnet`](https://testnet.nearblocks.io/address/inside-job.testnet) |
+| Sputnik DAO v2 (NEAR global contract) | the treasury: every spend is a Transfer proposal, the five desks vote, 3 of 5 pay it out; `settle` reads every status back | `file_spend`, `settle` in [`lib.rs`](contracts/council/src/lib.rs), [`dao.inside-job.testnet`](https://testnet.nearblocks.io/address/dao.inside-job.testnet), deployed from `dao.globals.primitives.testnet` |
+| Function-call keys (AI agents) | each seat's desk account has only two keys: `commit_vote` on the contract and `act_proposal` on the DAO, each with a gas allowance | `create_desk` in [`lib.rs`](contracts/council/src/lib.rs), [`setup-agents.ts`](apps/server/src/setup-agents.ts) |
+| NEAR AI Cloud | the AI council members' meeting talk from a TEE-hosted model, each line kept with the enclave's signature; the rules engine casts their votes | [`apps/server/src/nearai.ts`](apps/server/src/nearai.ts), [`packages/rules/src/bot.ts`](packages/rules/src/bot.ts) |
+| NEP-413 sign-in, NEP-366 meta-transactions | wallet sign-in (Better Auth + better-near-auth, NEAR Connect); `claim_seat` gasless through `inside-job-relay.testnet` | [`apps/web/src/wallet.ts`](apps/web/src/wallet.ts), [`apps/server/src/ba.ts`](apps/server/src/ba.ts) |
+| NEAR RPC (public testnet endpoints) | `pnpm verify` replays a night and checks it against the contract and the DAO with no keys | [`apps/server/src/verify.ts`](apps/server/src/verify.ts) |
+
+### NEAR smart contract: sealed roles, votes and filers
+
+<img src="media/stack/contract.gif" alt="Diagram: the referee calls create_match on inside-job.testnet with the seed's hash and five role commitments; every spend goes through file_spend, which checks the policy and writes the audit log and flags with a sealed filer; council desks seal eject votes with commit_vote, and tally_meeting and settle open and count them." width="100%">
+
+[`inside-job.testnet`](https://testnet.nearblocks.io/address/inside-job.testnet) keeps the night honest without knowing it
+in advance. `create_match` stores the seed's hash and five role commitments (the seed itself deals the Insider);
+`file_spend` enforces the policy (one of 16 game payees, 1–15 credits, at most 16 spends and 100 credits a match),
+writes the audit log with its flags and keeps the filer sealed; desks seal eject votes with `commit_vote`, which
+`tally_meeting` opens and counts. `settle` opens the seed and every filer and re-checks them
+([`lib.rs`](contracts/council/src/lib.rs), same bytes as [`packages/rules`](packages/rules/src)).
+
+### Sputnik DAO v2: a real treasury
+
+<img src="media/stack/dao.gif" alt="Diagram: dao.inside-job.testnet runs Sputnik DAO v2 code from the global contract dao.globals.primitives.testnet; inside-job.testnet files each spend as a Transfer proposal and the five council desks vote with act_proposal; three approvals pay testnet NEAR to the payee; settle reads every proposal's status back with get_proposal." width="100%">
+
+The treasury is [`dao.inside-job.testnet`](https://testnet.nearblocks.io/address/dao.inside-job.testnet), deployed
+from NEAR's global Sputnik DAO v2 contract `dao.globals.primitives.testnet`. Its policy lets only the contract
+(`terminal` role) add Transfer proposals and only the five desks (`council` role) vote; 3 of 5 approvals pay testnet NEAR
+(1 credit = 0.001 NEAR) to the payee. `settle` calls `get_proposal` for every spend, cross-contract, to add up the drain.
+The DAO still has its deploy-time full-access key ([why](#what-the-chain-does-not-prove)).
+
+### Function-call keys: desks that can vote, not pay
+
+<img src="media/stack/desks.gif" alt="Diagram: inside-job.testnet's create_desk makes seat1.inside-job.testnet (to seat5) with two function-call keys: commit_vote on the game contract with a 1 NEAR gas allowance and act_proposal on the DAO with a 3 NEAR gas allowance, and no full-access key; botBallot in the rules engine decides the AI seats' ballots; /api/status shows each desk's balance and remaining allowance." width="100%">
+
+`create_desk` creates `seat1` … `seat5.inside-job.testnet` with two function-call keys and nothing else:
+`commit_vote` on the contract (1 NEAR gas allowance) and `act_proposal` on the DAO (3 NEAR). A desk can vote but can't
+send NEAR or call anything else. The AI seats' ballots come from `botBallot` in [`bot.ts`](packages/rules/src/bot.ts);
+human seats' desk keys are held by the server, which casts their votes as the player chose. `GET /api/status` shows each
+desk's balance and remaining allowance.
+
+### NEAR AI Cloud: council members that talk, not vote
+
+<img src="media/stack/near-ai.gif" alt="Diagram: NEAR AI Cloud's TEE-hosted Qwen model hears only what one seat could know and answers with say and suspect; botBallot takes the suspect only if its own suspicion backs it and the rules cast the ballot; each line is kept with its request, response and the enclave's signature, marked NEAR AI TEE, and /api/attestation returns the TEE report bound to a fresh nonce." width="100%">
+
+The AI members' meeting lines come from `Qwen/Qwen3.6-35B-A3B-FP8` on NEAR AI Cloud
+([`nearai.ts`](apps/server/src/nearai.ts)). The model is told only what that seat could know and answers
+`{say, suspect}`; the planner accepts the suspect only if its own suspicion backs it, and the rules engine casts the
+vote. Each line is stored in the proof bundle with its exact request, response and the enclave's ECDSA signature;
+`/api/attestation` returns a fresh attestation report.
+
+### NEP-413 sign-in and NEP-366: claim your seat, gasless
+
+<img src="media/stack/wallet.gif" alt="Diagram: your NEAR wallet signs a NEP-413 message checked by better-near-auth; a delegate action for claim_seat goes through inside-job-relay.testnet, which pays the gas, to inside-job.testnet; settle writes claimed seats' results to the ledger." width="100%">
+
+Sign-in is Better Auth with better-near-auth ([`ba.ts`](apps/server/src/ba.ts)): the wallet signs "Sign in to &lt;host&gt;"
+and the server checks it against a full-access key. A few seconds into the match your wallet sends `claim_seat` as a
+NEP-366 delegate action ([`wallet.ts`](apps/web/src/wallet.ts)), relayed by `inside-job-relay.testnet`, which only relays to
+Inside Job and never attaches a deposit. `settle` then writes the result to `stats_of` and `leaderboard` (step 9 above
+has a real run).
+
+### NEAR RPC: check a night yourself
+
+<img src="media/stack/verify.gif" alt="Diagram: pnpm verify fetches the proof bundle from the server, get_match and get_policy from inside-job.testnet and get_proposal from dao.inside-job.testnet over public RPC; it opens the sealed roles, replays the night with packages/rules and compares the DAO's votes; then the real output for hosted match m-mw9m9fu0-42d3a6." width="100%">
+
+[`verify.ts`](apps/server/src/verify.ts) fetches the proof bundle (served only once the match is over) and reads the
+contract and the DAO over public testnet RPC, with no keys. It opens every sealed role and filer, replays the logged
+inputs with `packages/rules`, checks the spends, flags and eject votes, and compares every council vote with the DAO's
+own proposals. The last beat is the run in step 7 above, with long lines cut.
+
+### The rest of the stack
+
+<img src="media/stack/stack.gif" alt="Diagram: apps/web (three.js voxel office, React 19 and Vite 8, duty puzzles) talks to apps/server (Node 22, a 10 Hz sim, the chain mirror and AI talk) over WebSocket, which writes to inside-job.testnet and dao.inside-job.testnet; packages/rules is shared by browser and server; one image runs on Azure Container Apps with Azure Files at /data." width="100%">
+
+The web app is a three.js voxel office with a React HUD and duty puzzles ([`apps/web`](apps/web/src)); the Node
+server ([`apps/server`](apps/server/src)) runs rooms at 10 ticks a second, mirrors the night onchain with near-api-js
+and near-kit, and asks NEAR AI for the talk. [`packages/rules`](packages/rules/src) runs in both and is pinned to the
+contract by a shared hash test vector. One container on Azure Container Apps ([`deploy-azure.sh`](scripts/deploy-azure.sh))
+serves both, with an Azure Files share at `/data`.
+
 ## Running it locally
 
 ```bash
