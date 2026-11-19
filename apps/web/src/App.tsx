@@ -4,7 +4,7 @@ import { Game, type StartMsg } from './Game.tsx';
 import { net, setTicket, ticket, type Msg } from './net.ts';
 import { Onboarding, onboarded } from './Onboarding.tsx';
 import { Office } from './scene.ts';
-import { explainSignIn, setContract, signIn, signOut } from './wallet.ts';
+import { dismissed, explainSignIn, setContract, signIn, signOut } from './wallet.ts';
 
 // The shell: one three.js office behind everything; the title screen, a room's lobby, or a match on top.
 
@@ -117,7 +117,7 @@ function Account({ account, setAccount }: { account: string | null; setAccount: 
   }
   const go = (): void => {
     setBusy(true); setErr('');
-    signIn().then(setAccount).catch((e: Error) => setErr(e.message || 'unknown error')).finally(() => setBusy(false));
+    signIn().then(setAccount).catch((e: Error) => { if (!dismissed(e)) setErr(e.message || 'unknown error'); }).finally(() => setBusy(false));
   };
   const why = err ? explainSignIn(err) : null;
   return (
